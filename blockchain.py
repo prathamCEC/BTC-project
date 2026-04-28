@@ -1,16 +1,21 @@
 import hashlib
 import time
+import json
+import os
 from datetime import datetime, timezone
 
 
+CHAIN_FILE = "chain.json"
+
+
 class Block:
-    def __init__(self, index, data, previous_hash):
+    def __init__(self, index, data, previous_hash, timestamp=None, nonce=0, hash=None):
         self.index = index
-        self.timestamp = time.time()
+        self.timestamp = timestamp if timestamp else time.time()
         self.data = data
         self.previous_hash = previous_hash
-        self.nonce = 0
-        self.hash = self.calculate_hash()
+        self.nonce = nonce
+        self.hash = hash if hash else self.calculate_hash()
 
     def calculate_hash(self):
         content = (
@@ -29,11 +34,31 @@ class Block:
             self.hash = self.calculate_hash()
         print(f"  Block mined! Nonce: {self.nonce} | Hash: {self.hash}")
 
+    def to_dict(self):
+        return {
+            "index": self.index,
+            "timestamp": self.timestamp,
+            "data": self.data,
+            "previous_hash": self.previous_hash,
+            "nonce": self.nonce,
+            "hash": self.hash
+        }
+
+    @staticmethod
+    def from_dict(d):
+        return Block(d["index"], d["data"], d["previous_hash"], d["timestamp"], d["nonce"], d["hash"])
+
 
 class Blockchain:
     def __init__(self):
-        self.chain = [self.create_genesis_block()]
         self.difficulty = 2
+        if os.path.exists(CHAIN_FILE):
+            self.chain = self.load_chain()
+            print("  Existing blockchain loaded from disk.")
+        else:
+            self.chain = [self.create_genesis_block()]
+            self.save_chain()
+            print("  Genesis Block created for the first time.")
 
     def create_genesis_block(self):
         return Block(0, "Genesis Block", "0")
@@ -48,6 +73,15 @@ class Blockchain:
         print(f"\n  Mining block {index}...")
         new_block.mine_block(self.difficulty)
         self.chain.append(new_block)
+        self.save_chain()
+
+    def save_chain(self):
+        with open(CHAIN_FILE, "w") as f:
+            json.dump([block.to_dict() for block in self.chain], f, indent=4)
+
+    def load_chain(self):
+        with open(CHAIN_FILE, "r") as f:
+            return [Block.from_dict(d) for d in json.load(f)]
 
     def is_chain_valid(self):
         for i in range(1, len(self.chain)):
