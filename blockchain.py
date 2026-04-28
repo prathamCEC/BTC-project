@@ -1,5 +1,6 @@
 import hashlib
 import time
+from datetime import datetime, timezone
 
 
 class Block:
@@ -61,8 +62,9 @@ class Blockchain:
     def print_chain(self):
         print("\n" + "=" * 55)
         for block in self.chain:
+            dt = datetime.fromtimestamp(block.timestamp, tz=timezone.utc)
             print(f"  Index        : {block.index}")
-            print(f"  Timestamp    : {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(block.timestamp))}")
+            print(f"  Timestamp    : {dt.strftime('%Y-%m-%d %H:%M:%S UTC')}")
             print(f"  Data         : {block.data}")
             print(f"  Previous Hash: {block.previous_hash}")
             print(f"  Hash         : {block.hash}")

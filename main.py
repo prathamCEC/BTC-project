@@ -7,7 +7,8 @@ def print_menu():
     print("  1. Add Transaction")
     print("  2. View Blockchain")
     print("  3. Validate Blockchain")
-    print("  4. Exit")
+    print("  4. Tamper with a Block")
+    print("  5. Exit")
     print("=" * 35)
 
 def main():
@@ -16,7 +17,7 @@ def main():
 
     while True:
         print_menu()
-        choice = input("  Enter your choice (1-4): ").strip()
+        choice = input("  Enter your choice (1-5): ").strip()
 
         if choice == "1":
             data = input("  Enter transaction data: ").strip()
@@ -36,11 +37,29 @@ def main():
             print(f"\n  Blockchain status: {status}")
 
         elif choice == "4":
+            chain_len = len(my_blockchain.chain)
+            if chain_len <= 1:
+                print("  No blocks to tamper with. Add a transaction first.")
+                continue
+            print(f"  Available block indexes: 1 to {chain_len - 1}")
+            try:
+                idx = int(input("  Enter block index to tamper: ").strip())
+                if idx < 1 or idx >= chain_len:
+                    print("  Invalid index.")
+                    continue
+            except ValueError:
+                print("  Please enter a valid number.")
+                continue
+            new_data = input("  Enter fake data: ").strip()
+            my_blockchain.chain[idx].data = new_data
+            print(f"  Block {idx} tampered! Run Validate Blockchain to see the effect.")
+
+        elif choice == "5":
             print("\n  Exiting... Goodbye!\n")
             break
 
         else:
-            print("  Invalid choice. Please enter a number between 1 and 4.")
+            print("  Invalid choice. Please enter a number between 1 and 5.")
 
 if __name__ == "__main__":
     main()
