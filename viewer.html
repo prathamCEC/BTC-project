@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Blockchain Viewer</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0d1117;
+      color: #e6edf3;
+      font-family: 'Segoe UI', monospace;
+      min-height: 100vh;
+      padding: 40px 20px;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 1.8rem;
+      color: #58a6ff;
+      margin-bottom: 8px;
+      letter-spacing: 2px;
+    }
+
+    #status {
+      text-align: center;
+      font-size: 0.85rem;
+      color: #8b949e;
+      margin-bottom: 40px;
+    }
+
+    #chain {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      overflow-x: auto;
+      padding: 20px 40px 40px;
+      gap: 0;
+    }
+
+    .block {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      min-width: 280px;
+      max-width: 280px;
+      padding: 20px 24px;
+      position: relative;
+      transition: transform 0.2s, box-shadow 0.2s;
+      flex-shrink: 0;
+    }
+
+    .block:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 0 20px rgba(88, 166, 255, 0.15);
+    }
+
+    .block.genesis {
+      border-color: #f0883e;
+      box-shadow: 0 0 12px rgba(240, 136, 62, 0.2);
+    }
+
+    .block-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+
+    .block-index {
+      font-size: 1rem;
+      font-weight: bold;
+      color: #58a6ff;
+    }
+
+    .block.genesis .block-index { color: #f0883e; }
+
+    .badge {
+      font-size: 0.7rem;
+      padding: 2px 10px;
+      border-radius: 20px;
+      background: #f0883e22;
+      color: #f0883e;
+      border: 1px solid #f0883e55;
+    }
+
+    .field { margin-bottom: 10px; }
+
+    .label {
+      font-size: 0.7rem;
+      color: #8b949e;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 3px;
+    }
+
+    .value {
+      font-size: 0.82rem;
+      color: #e6edf3;
+      word-break: break-all;
+      background: #0d1117;
+      padding: 6px 10px;
+      border-radius: 6px;
+      border: 1px solid #21262d;
+    }
+
+    .value.hash-val { color: #3fb950; font-family: monospace; }
+    .value.prev-val { color: #d2a8ff; font-family: monospace; }
+    .value.data-val { color: #ffa657; }
+
+    /* Arrow connector */
+    .connector {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      gap: 4px;
+      padding: 0 4px;
+    }
+
+    .connector-body {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+    }
+
+    .connector-line {
+      width: 30px;
+      height: 2px;
+      background: linear-gradient(to right, #3fb950, #d2a8ff);
+    }
+
+    .connector-label {
+      font-size: 0.6rem;
+      color: #8b949e;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+    }
+
+    .connector-arrow {
+      width: 0;
+      height: 0;
+      border-top: 7px solid transparent;
+      border-bottom: 7px solid transparent;
+      border-left: 10px solid #d2a8ff;
+    }
+
+    #valid-banner {
+      text-align: center;
+      margin-top: 36px;
+      font-size: 1rem;
+      font-weight: bold;
+      padding: 10px 24px;
+      border-radius: 8px;
+      display: inline-block;
+      position: relative;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+
+    .valid   { background: #1a3a2a; color: #3fb950; border: 1px solid #3fb950; }
+    .invalid { background: #3a1a1a; color: #f85149; border: 1px solid #f85149; }
+  </style>
+</head>
+<body>
+
+  <h1>⛓ Blockchain Viewer</h1>
+  <div id="status">Loading chain...</div>
+  <div id="chain"></div>
+  <div id="valid-banner"></div>
+
+  <script>
+    function shortHash(h) {
+      return h.length > 16 ? h.slice(0, 8) + '...' + h.slice(-8) : h;
+    }
+
+    function formatTime(ts) {
+      const d = new Date(ts * 1000);
+      return d.toUTCString();
+    }
+
+    async function sha256(str) {
+      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+      return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    async function validateChain(blocks) {
+      for (let i = 0; i < blocks.length; i++) {
+        const b = blocks[i];
+        const content = String(b.index) + String(b.timestamp) + String(b.data) + String(b.previous_hash) + String(b.nonce);
+        const recalculated = await sha256(content);
+        if (recalculated !== b.hash) return false;
+        if (i > 0 && b.previous_hash !== blocks[i - 1].hash) return false;
+      }
+      return true;
+    }
+
+    async function loadChain() {
+      const res = await fetch('chain.json?t=' + Date.now());
+      const blocks = await res.json();
+
+      document.getElementById('status').textContent =
+        `${blocks.length} block${blocks.length !== 1 ? 's' : ''} loaded`;
+
+      const container = document.getElementById('chain');
+      container.innerHTML = '';
+
+      blocks.forEach((block, i) => {
+        // Block card
+        const card = document.createElement('div');
+        card.className = 'block' + (block.index === 0 ? ' genesis' : '');
+
+        card.innerHTML = `
+          <div class="block-header">
+            <span class="block-index">Block #${block.index}</span>
+            ${block.index === 0 ? '<span class="badge">GENESIS</span>' : ''}
+          </div>
+          <div class="field">
+            <div class="label">Data</div>
+            <div class="value data-val">${block.data}</div>
+          </div>
+          <div class="field">
+            <div class="label">Timestamp</div>
+            <div class="value">${formatTime(block.timestamp)}</div>
+          </div>
+          <div class="field">
+            <div class="label">Nonce</div>
+            <div class="value">${block.nonce}</div>
+          </div>
+          <div class="field">
+            <div class="label">Previous Hash</div>
+            <div class="value prev-val" title="${block.previous_hash}">${shortHash(block.previous_hash)}</div>
+          </div>
+          <div class="field">
+            <div class="label">Hash</div>
+            <div class="value hash-val" title="${block.hash}">${shortHash(block.hash)}</div>
+          </div>
+        `;
+        container.appendChild(card);
+
+        // Arrow between blocks
+        if (i < blocks.length - 1) {
+          const conn = document.createElement('div');
+          conn.className = 'connector';
+          conn.innerHTML = `
+            <div class="connector-body">
+              <div class="connector-line"></div>
+              <div class="connector-arrow"></div>
+            </div>
+            <div class="connector-label">previous_hash →</div>
+          `;
+          container.appendChild(conn);
+        }
+      });
+
+      // Validity banner
+      const isValid = await validateChain(blocks);
+      const banner = document.getElementById('valid-banner');
+      banner.className = 'valid-banner ' + (isValid ? 'valid' : 'invalid');
+      banner.textContent = isValid ? '✓ Chain is VALID' : '✗ Chain is INVALID — Tampering Detected!';
+    }
+
+    loadChain();
+    setInterval(loadChain, 3000); // auto-refresh every 3s
+  </script>
+</body>
+</html>
